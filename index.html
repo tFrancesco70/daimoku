@@ -71,6 +71,20 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
 .ctrl-btn.stop { border-color: var(--danger); color: var(--danger); }
 .ctrl-btn.stop:active { background: #2a1212; }
 
+/* daily strip — sessions screen + timer screen */
+.daily-strip { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 12px; }
+.daily-strip .ds-left { font-size: 13px; color: var(--text2); }
+.daily-strip .ds-left strong { color: var(--accent); font-weight: 500; }
+.daily-strip .ds-bar-wrap { flex: 1; background: var(--bg3); border-radius: 999px; height: 4px; overflow: hidden; }
+.daily-strip .ds-bar { height: 100%; border-radius: 999px; background: var(--accent); transition: width 0.4s ease; }
+.daily-strip .ds-bar.done { background: var(--success); }
+.daily-strip .ds-right { font-size: 12px; color: var(--text3); white-space: nowrap; }
+.daily-strip .ds-right.done { color: var(--success); }
+
+/* timer daily sub-display */
+.timer-daily { font-size: 13px; color: var(--text3); margin-top: 18px; letter-spacing: 0.03em; text-align: center; }
+.timer-daily.done { color: var(--success); }
+
 /* ══ STORICO ══ */
 #screen-history { overflow: hidden; }
 .history-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); flex-shrink: 0; }
@@ -78,7 +92,8 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
 .stat-cell .sv { font-size: 20px; font-weight: 500; color: var(--accent); }
 .stat-cell .sl { font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
 .history-list { flex: 1; overflow-y: auto; }
-.history-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.history-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.history-item:active { background: var(--bg2); }
 .hi-date { font-size: 14px; color: var(--text); }
 .hi-time { font-size: 12px; color: var(--text2); margin-top: 2px; }
 .hi-dur { font-size: 16px; font-weight: 500; color: var(--accent); }
@@ -177,6 +192,7 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
 
   <!-- SESSIONI -->
   <div id="screen-sessions" class="screen active">
+    <div class="daily-strip" id="sessions-daily-strip" style="display:none"></div>
     <div class="sessions-label">scegli la durata</div>
     <div class="sessions-grid" id="sessions-grid"></div>
   </div>
@@ -200,6 +216,7 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
           <div id="timer-status">pronto</div>
         </div>
       </div>
+      <div id="timer-daily" class="timer-daily" style="display:none"></div>
     </div>
     <div class="timer-controls" id="timer-controls"></div>
   </div>
@@ -294,6 +311,40 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
   </nav>
 </div>
 
+<!-- MODAL: modifica record -->
+<div class="modal-overlay" id="modal-edit-record">
+  <div class="modal">
+    <h3>Modifica sessione</h3>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:4px">
+      <div class="field">
+        <label>Data</label>
+        <input type="date" id="er-date">
+      </div>
+      <div class="field">
+        <label>Ora</label>
+        <input type="time" id="er-time">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Durata (ore)</label>
+          <input type="number" id="er-dur-h" min="0" max="23" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Durata (min)</label>
+          <input type="number" id="er-dur-m" min="0" max="59" placeholder="30">
+        </div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="danger" onclick="deleteRecord()">Elimina</button>
+      <button class="confirm" onclick="saveRecord()">Salva</button>
+    </div>
+    <div class="modal-btns" style="margin-top:8px">
+      <button onclick="closeModal('modal-edit-record')">Annulla</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: aggiungi sessione -->
 <div class="modal-overlay" id="modal-add">
   <div class="modal">
@@ -354,6 +405,41 @@ function showScreen(name) {
   document.getElementById('bottom-nav').style.display = NAV_SCREENS.includes(name) ? 'flex' : 'none';
   if (name === 'history') renderHistory();
   if (name === 'goal') renderGoal();
+  if (name === 'sessions') renderDailyStrip();
+}
+
+// ─── DAILY STRIP (sessions + timer) ──────────────────
+function getDailyInfo() {
+  if (!goal || !goal.dailyMins) return null;
+  const targetSecs = goal.dailyMins * 60;
+  const doneSecs = getTodayDoneSecs();
+  const pct = Math.min(100, Math.round(doneSecs / targetSecs * 100));
+  const remainSecs = Math.max(0, targetSecs - doneSecs);
+  const isDone = doneSecs >= targetSecs;
+  return { targetSecs, doneSecs, pct, remainSecs, isDone };
+}
+
+function renderDailyStrip() {
+  const strip = document.getElementById('sessions-daily-strip');
+  const info = getDailyInfo();
+  if (!info) { strip.style.display = 'none'; return; }
+  strip.style.display = 'flex';
+  strip.innerHTML = `
+    <div class="ds-left">Oggi <strong>${fmtHM(info.doneSecs)}</strong> / ${fmtHM(info.targetSecs)}</div>
+    <div class="ds-bar-wrap"><div class="ds-bar${info.isDone?' done':''}" style="width:${info.pct}%"></div></div>
+    <div class="ds-right${info.isDone?' done':''}">${info.isDone ? '✓' : 'mancano ' + fmtHM(info.remainSecs)}</div>`;
+}
+
+function updateTimerDaily(extraSecs) {
+  const el = document.getElementById('timer-daily');
+  const info = getDailyInfo();
+  if (!info) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const effectiveDone = info.doneSecs + (extraSecs || 0);
+  const remain = Math.max(0, info.targetSecs - effectiveDone);
+  const isDone = effectiveDone >= info.targetSecs;
+  el.className = 'timer-daily' + (isDone ? ' done' : '');
+  el.textContent = isDone ? '✓ target giornaliero raggiunto' : '— ' + fmtHM(remain);
 }
 
 // ─── SESSIONI ─────────────────────────────────────────
@@ -405,6 +491,7 @@ function openTimer(secs, label) {
   document.getElementById('timer-session-name').textContent = label;
   updateTimerDisplay(secs); updateRing(1);
   setTimerStatus('pronto'); renderControls('idle');
+  updateTimerDaily(0);
   showScreen('timer');
 }
 
@@ -454,8 +541,9 @@ function tick() {
   else {
     remainSecs=Math.max(0,totalSecs-elapsed);
     updateTimerDisplay(remainSecs); updateRing(remainSecs/totalSecs);
-    if (remainSecs<=0) { clearInterval(intervalId); completeTimer(elapsed); }
+    if (remainSecs<=0) { clearInterval(intervalId); completeTimer(elapsed); return; }
   }
+  updateTimerDaily(elapsed);
 }
 
 function pauseTimer() { clearInterval(intervalId); pausedElapsed+=Math.floor((Date.now()-startedAt)/1000); timerState='paused'; setTimerStatus('in pausa'); renderControls('paused'); releaseWakeLock(); }
@@ -510,14 +598,53 @@ function renderHistory() {
     <div class="stat-cell"><div class="sv">${fmtDur(total)}</div><div class="sl">totale</div></div>
     <div class="stat-cell"><div class="sv">${fmtDur(todaySecs)||'0'}</div><div class="sl">oggi</div></div>`;
   if (!history.length) { list.innerHTML='<div class="history-empty">Nessuna sessione ancora.<br>Inizia la prima dalla tab Sessioni.</div>'; return; }
-  list.innerHTML=history.map(s => {
+  list.innerHTML=history.map((s,i) => {
     const d=new Date(s.date);
-    return `<div class="history-item">
+    return `<div class="history-item" onclick="openEditRecord(${i})">
       <div><div class="hi-date">${d.toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'})}</div>
       <div class="hi-time">${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}${s.completed?'':' · interrotta'}</div></div>
       <div class="hi-dur">${fmtDur(s.dur)}</div>
     </div>`;
   }).join('');
+}
+
+// ─── MODIFICA RECORD ──────────────────────────────────
+let editingRecordIdx = null;
+
+function openEditRecord(idx) {
+  editingRecordIdx = idx;
+  const s = history[idx];
+  const d = new Date(s.date);
+  document.getElementById('er-date').value = d.toISOString().slice(0,10);
+  document.getElementById('er-time').value = d.toTimeString().slice(0,5);
+  document.getElementById('er-dur-h').value = Math.floor(s.dur / 3600) || '';
+  document.getElementById('er-dur-m').value = Math.floor((s.dur % 3600) / 60) || '';
+  openModal('modal-edit-record');
+}
+
+function saveRecord() {
+  const date = document.getElementById('er-date').value;
+  const time = document.getElementById('er-time').value;
+  const h = parseInt(document.getElementById('er-dur-h').value) || 0;
+  const m = parseInt(document.getElementById('er-dur-m').value) || 0;
+  if (!date || !time) { showToast('Inserisci data e ora'); return; }
+  const dur = h*3600 + m*60;
+  if (dur < 10) { showToast('Durata troppo breve'); return; }
+  history[editingRecordIdx].date = new Date(date + 'T' + time).toISOString();
+  history[editingRecordIdx].dur = dur;
+  history.sort((a,b) => new Date(b.date) - new Date(a.date));
+  save();
+  closeModal('modal-edit-record');
+  renderHistory();
+  showToast('Sessione aggiornata');
+}
+
+function deleteRecord() {
+  history.splice(editingRecordIdx, 1);
+  save();
+  closeModal('modal-edit-record');
+  renderHistory();
+  showToast('Sessione eliminata');
 }
 
 // ─── OBIETTIVO ────────────────────────────────────────
@@ -688,6 +815,7 @@ if ('serviceWorker' in navigator) {
 
 // ─── INIT ─────────────────────────────────────────────
 renderSessions();
+renderDailyStrip();
 </script>
 </body>
 </html>
