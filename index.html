@@ -382,7 +382,14 @@ const NAV_SCREENS = ['sessions','history','goal'];
 // ─── STATE ────────────────────────────────────────────
 let sessionDurations = JSON.parse(localStorage.getItem('dmk_durations') || 'null') || [5,10,15,20,30,35,45,60,80,90,120];
 let history = JSON.parse(localStorage.getItem('dmk_history') || '[]');
-let goal = JSON.parse(localStorage.getItem('dmk_goal') || 'null');
+// migrate old single goal to array
+let goals = (()=>{
+  const arr = localStorage.getItem('dmk_goals');
+  if (arr) return JSON.parse(arr);
+  const old = localStorage.getItem('dmk_goal');
+  if (old) { const g=JSON.parse(old); return g ? [g] : []; }
+  return [];
+})();
 
 let currentDur = 0, totalSecs = 0, remainSecs = 0;
 let timerState = 'idle';
@@ -392,7 +399,7 @@ let wakeLock = null;
 function save() {
   localStorage.setItem('dmk_durations', JSON.stringify(sessionDurations));
   localStorage.setItem('dmk_history', JSON.stringify(history));
-  localStorage.setItem('dmk_goal', JSON.stringify(goal));
+  localStorage.setItem('dmk_goals', JSON.stringify(goals));
 }
 
 // ─── NAV ──────────────────────────────────────────────
@@ -410,8 +417,9 @@ function showScreen(name) {
 
 // ─── DAILY STRIP (sessions + timer) ──────────────────
 function getDailyInfo() {
-  if (!goal || !goal.dailyMins) return null;
-  const targetSecs = goal.dailyMins * 60;
+  const g = goals.find(g => g.dailyMins);
+  if (!g) return null;
+  const targetSecs = g.dailyMins * 60;
   const doneSecs = getTodayDoneSecs();
   const pct = Math.min(100, Math.round(doneSecs / targetSecs * 100));
   const remainSecs = Math.max(0, targetSecs - doneSecs);
@@ -565,14 +573,27 @@ function goBackDone() { document.getElementById('bottom-nav').style.display='fle
 
 function playBell() {
   try {
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    [523.25,659.25,783.99].forEach((freq,i) => {
-      const osc=ctx.createOscillator(), gain=ctx.createGain();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const partials = [
+      { freq: 432,  amp: 0.6,  decay: 6.0 },
+      { freq: 1192, amp: 0.25, decay: 4.5 },
+      { freq: 2333, amp: 0.1,  decay: 3.0 },
+      { freq: 3857, amp: 0.05, decay: 1.8 },
+    ];
+    partials.forEach(p => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.frequency.value = 5.5; lfoGain.gain.value = 1.2;
+      lfo.connect(lfoGain); lfoGain.connect(osc.frequency); lfo.start();
       osc.connect(gain); gain.connect(ctx.destination);
-      osc.type='sine'; osc.frequency.value=freq;
-      const t=ctx.currentTime+i*0.65;
-      gain.gain.setValueAtTime(0,t); gain.gain.linearRampToValueAtTime(0.4,t+0.01); gain.gain.exponentialRampToValueAtTime(0.001,t+2.5);
-      osc.start(t); osc.stop(t+2.5);
+      osc.type = 'sine'; osc.frequency.value = p.freq;
+      const t = ctx.currentTime;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(p.amp, t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + p.decay);
+      osc.start(t); osc.stop(t + p.decay); lfo.stop(t + p.decay);
     });
   } catch(e) {}
 }
@@ -676,12 +697,9 @@ function renderGoal() {
   let html='';
 
   // ── CARD GIORNALIERA ──
-  if (goal && goal.dailyMins) {
-    const targetSecs = goal.dailyMins*60;
-    const doneSecs = getTodayDoneSecs();
-    const pct = Math.min(100, Math.round(doneSecs/targetSecs*100));
-    const isDone = doneSecs >= targetSecs;
-    const remainSecs = Math.max(0, targetSecs-doneSecs);
+  const dailyInfo = getDailyInfo();
+  if (dailyInfo) {
+    const {doneSecs, targetSecs, pct, remainSecs:rem, isDone} = dailyInfo;
     html += `<div class="card">
       <div class="card-title">Oggi</div>
       <div class="daily-main">
@@ -689,74 +707,79 @@ function renderGoal() {
         <div class="daily-target">target ${fmtHM(targetSecs)}</div>
       </div>
       <div class="daily-bar"><div class="daily-bar-fill${isDone?' done':''}" style="width:${pct}%"></div></div>
-      <div class="daily-remaining${isDone?' done':''}">${isDone ? '✓ Obiettivo giornaliero raggiunto' : 'Mancano ' + fmtHM(remainSecs)}</div>
+      <div class="daily-remaining${isDone?' done':''}">${isDone ? '✓ Obiettivo giornaliero raggiunto' : 'Mancano ' + fmtHM(rem)}</div>
     </div>`;
   }
 
-  // ── CARD GOAL LUNGO TERMINE ──
-  if (!goal) {
+  // ── CARDS OBIETTIVI ──
+  if (!goals.length) {
     html += `<div class="goal-empty">
       <p>Nessun obiettivo attivo.</p>
-      <button class="btn-full primary" style="max-width:220px" onclick="openGoalEdit()">Crea obiettivo</button>
+      <button class="btn-full primary" style="max-width:220px" onclick="openGoalEdit(-1)">Crea obiettivo</button>
     </div>`;
   } else {
-    const targetSecs=goalTargetSecs(goal);
-    const doneSecs=Math.min(calcGoalDone(goal),targetSecs);
-    const leftSecs=Math.max(0,targetSecs-doneSecs);
-    const pct=Math.min(100,Math.round(doneSecs/targetSecs*100));
-    const startD=new Date(goal.startDate).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
-    const endD=new Date(goal.endDate).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
-
-    let projHTML='';
-    if (pct<100) {
-      const daysSince=Math.max(1,Math.round((Date.now()-new Date(goal.startDate))/86400000));
-      const spd=doneSecs/daysSince;
-      if (spd>0) {
-        const daysNeeded=Math.ceil(leftSecs/spd);
-        const projDate=new Date(); projDate.setDate(projDate.getDate()+daysNeeded);
-        const cls=projDate<=new Date(goal.endDate)?'ok':'warn';
-        const projStr=projDate.toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
-        projHTML=`<div class="goal-projection ${cls}">Al ritmo attuale finisci il ${projStr}${cls==='ok'?' — entro l\'obiettivo':' — oltre la data obiettivo'}.</div>`;
+    goals.forEach((g, idx) => {
+      const targetSecs=goalTargetSecs(g);
+      const doneSecs=Math.min(calcGoalDone(g),targetSecs);
+      const leftSecs=Math.max(0,targetSecs-doneSecs);
+      const pct=Math.min(100,Math.round(doneSecs/targetSecs*100));
+      const startD=new Date(g.startDate).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+      const endD=new Date(g.endDate).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+      let projHTML='';
+      if (pct<100) {
+        const daysSince=Math.max(1,Math.round((Date.now()-new Date(g.startDate))/86400000));
+        const spd=doneSecs/daysSince;
+        if (spd>0) {
+          const daysNeeded=Math.ceil(leftSecs/spd);
+          const projDate=new Date(); projDate.setDate(projDate.getDate()+daysNeeded);
+          const cls=projDate<=new Date(g.endDate)?'ok':'warn';
+          const projStr=projDate.toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+          projHTML=`<div class="goal-projection ${cls}">Al ritmo attuale finisci il ${projStr}${cls==='ok'?' — entro l\'obiettivo':' — oltre la data obiettivo'}.</div>`;
+        }
+      } else {
+        projHTML=`<div class="goal-projection done">Obiettivo raggiunto! 🎉</div>`;
       }
-    } else {
-      projHTML=`<div class="goal-projection done">Obiettivo raggiunto! 🎉</div>`;
-    }
-
-    html+=`<div class="card">
-      <div class="card-title">Obiettivo</div>
-      ${goal.name?`<div class="goal-name">${goal.name}</div>`:''}
-      <div>
-        <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${pct}%"></div></div>
-        <div class="pct-row"><span class="pct-label">${pct}%</span></div>
-      </div>
-      <div class="goal-row"><span class="gr-label">Fatto</span><span class="gr-val accent">${fmtHM(doneSecs)}</span></div>
-      <div class="goal-row"><span class="gr-label">Rimane</span><span class="gr-val muted">${fmtHM(leftSecs)}</span></div>
-      <hr class="goal-divider">
-      <div class="goal-dates">
-        <div class="goal-date-block"><span class="gd-label">Inizio</span><span class="gd-val">${startD}</span></div>
-        <div class="goal-date-block end"><span class="gd-label">Obiettivo</span><span class="gd-val">${endD}</span></div>
-      </div>
-      ${projHTML}
-    </div>
-    <button class="btn-full" onclick="openGoalEdit()">Modifica</button>`;
+      html+=`<div class="card">
+        <div class="card-title">Obiettivo</div>
+        ${g.name?`<div class="goal-name">${g.name}</div>`:''}
+        <div>
+          <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${pct}%"></div></div>
+          <div class="pct-row"><span class="pct-label">${pct}%</span></div>
+        </div>
+        <div class="goal-row"><span class="gr-label">Fatto</span><span class="gr-val accent">${fmtHM(doneSecs)}</span></div>
+        <div class="goal-row"><span class="gr-label">Rimane</span><span class="gr-val muted">${fmtHM(leftSecs)}</span></div>
+        <hr class="goal-divider">
+        <div class="goal-dates">
+          <div class="goal-date-block"><span class="gd-label">Inizio</span><span class="gd-val">${startD}</span></div>
+          <div class="goal-date-block end"><span class="gd-label">Obiettivo</span><span class="gd-val">${endD}</span></div>
+        </div>
+        ${projHTML}
+        <button class="btn-full" style="margin-top:4px" onclick="openGoalEdit(${idx})">Modifica</button>
+      </div>`;
+    });
+    html+=`<button class="btn-full primary" onclick="openGoalEdit(-1)">+ Nuovo obiettivo</button>`;
   }
 
   scr.innerHTML=html;
 }
 
 // ─── GOAL EDIT ────────────────────────────────────────
-function openGoalEdit() {
-  document.getElementById('edit-title').textContent = goal ? 'Modifica obiettivo' : 'Crea obiettivo';
-  document.getElementById('btn-annulla-goal').style.display = goal ? 'block' : 'none';
-  if (goal) {
-    document.getElementById('edit-name').value=goal.name||'';
-    document.getElementById('edit-target-val').value=goal.targetVal;
-    document.getElementById('edit-target-unit').value=goal.targetUnit;
-    document.getElementById('edit-start').value=goal.startDate;
-    document.getElementById('edit-end').value=goal.endDate;
-    document.getElementById('edit-pre-h').value=Math.floor((goal.preSecs||0)/3600)||'';
-    document.getElementById('edit-pre-m').value=Math.floor(((goal.preSecs||0)%3600)/60)||'';
-    document.getElementById('edit-daily').value=goal.dailyMins||'';
+let editingGoalIdx = -1; // -1 = new
+
+function openGoalEdit(idx) {
+  editingGoalIdx = idx;
+  const g = idx >= 0 ? goals[idx] : null;
+  document.getElementById('edit-title').textContent = g ? 'Modifica obiettivo' : 'Nuovo obiettivo';
+  document.getElementById('btn-annulla-goal').style.display = g ? 'block' : 'none';
+  if (g) {
+    document.getElementById('edit-name').value=g.name||'';
+    document.getElementById('edit-target-val').value=g.targetVal;
+    document.getElementById('edit-target-unit').value=g.targetUnit;
+    document.getElementById('edit-start').value=g.startDate;
+    document.getElementById('edit-end').value=g.endDate;
+    document.getElementById('edit-pre-h').value=Math.floor((g.preSecs||0)/3600)||'';
+    document.getElementById('edit-pre-m').value=Math.floor(((g.preSecs||0)%3600)/60)||'';
+    document.getElementById('edit-daily').value=g.dailyMins||'';
   } else {
     ['edit-name','edit-pre-h','edit-pre-m','edit-end','edit-daily'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('edit-target-val').value='1000000';
@@ -790,17 +813,22 @@ function saveGoal() {
   if (endDate<=startDate) { showToast("La data obiettivo deve essere dopo l'inizio"); return; }
   const preH=parseInt(document.getElementById('edit-pre-h').value)||0;
   const preM=parseInt(document.getElementById('edit-pre-m').value)||0;
-  goal={
+  const g = {
     name: document.getElementById('edit-name').value.trim(),
     targetVal, targetUnit, startDate, endDate,
     preSecs: preH*3600+preM*60,
     dailyMins
   };
+  if (editingGoalIdx >= 0) goals[editingGoalIdx] = g;
+  else goals.push(g);
   save(); showToast('Obiettivo salvato'); showScreen('goal');
 }
 
 function confirmAnnullaGoal() { openModal('modal-confirm-annulla'); }
-function annullaGoal() { goal=null; save(); closeModal('modal-confirm-annulla'); showScreen('goal'); showToast('Obiettivo annullato'); }
+function annullaGoal() {
+  if (editingGoalIdx >= 0) goals.splice(editingGoalIdx, 1);
+  save(); closeModal('modal-confirm-annulla'); showScreen('goal'); showToast('Obiettivo annullato');
+}
 
 // ─── TOAST ────────────────────────────────────────────
 function showToast(msg) {
