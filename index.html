@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#111111">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Daimoku">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="Crane_256.png">
+<title>Daimoku</title>
+<style>
+:root {
+  --bg: #111111; --bg2: #1a1a1a; --bg3: #242424;
+  --border: #2e2e2e; --border2: #3a3a3a;
+  --text: #f0f0f0; --text2: #888; --text3: #505050;
+  --accent: #c8a96e; --accent2: #a07840;
+  --danger: #c0392b; --success: #27ae60;
+  --radius: 12px; --radius-sm: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; overflow: hidden; user-select: none; }
+#app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 480px; margin: 0 auto; position: relative; overflow: hidden; }
+
+.screen { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+.screen.active { display: flex; }
+
+/* NAV */
+.bottom-nav { display: flex; border-top: 1px solid var(--border); flex-shrink: 0; background: var(--bg); }
+.nav-btn { flex: 1; background: none; border: none; color: var(--text3); padding: 10px 0 13px; font-size: 11px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: color 0.15s; letter-spacing: 0.03em; }
+.nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nav-btn.active { color: var(--accent); }
+
+/* ══ SESSIONI ══ */
+#screen-sessions { padding: 20px; gap: 16px; overflow-y: auto; }
+.sessions-label { font-size: 11px; letter-spacing: 0.12em; color: var(--text3); text-transform: uppercase; font-weight: 500; }
+.sessions-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.session-btn { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: border-color 0.15s; position: relative; }
+.session-btn:active { background: var(--bg3); border-color: var(--accent2); }
+.session-btn .s-num { font-size: 26px; font-weight: 500; color: var(--text); line-height: 1; }
+.session-btn .s-unit { font-size: 11px; color: var(--text2); letter-spacing: 0.05em; }
+.session-btn.infinite .s-num { font-size: 32px; color: var(--accent); }
+.session-btn.custom-add { border-style: dashed; }
+.session-btn.custom-add .s-num { font-size: 28px; color: var(--text3); }
+.del-btn { position: absolute; top: 5px; right: 7px; background: none; border: none; color: var(--text3); font-size: 13px; cursor: pointer; padding: 2px; line-height: 1; opacity: 0; }
+.session-btn:active .del-btn { opacity: 1; }
+
+/* ══ TIMER ══ */
+#screen-timer { justify-content: space-between; }
+.timer-top { display: flex; align-items: center; padding: 14px 20px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 12px; }
+.back-btn { background: none; border: none; color: var(--text2); cursor: pointer; padding: 4px; display: flex; align-items: center; }
+.back-btn:active { color: var(--text); }
+.back-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.timer-session-name { font-size: 15px; color: var(--text2); }
+.timer-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+.timer-ring-wrap { position: relative; width: 240px; height: 240px; }
+#timer-svg { width: 240px; height: 240px; transform: rotate(-90deg); }
+#ring-track { fill: none; stroke: var(--bg3); stroke-width: 6; }
+#ring-progress { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 0.5s; }
+.timer-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+#timer-display { font-size: 52px; font-weight: 300; letter-spacing: -1px; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1; }
+#timer-status { font-size: 12px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; }
+.timer-controls { display: flex; gap: 12px; padding: 20px 24px 28px; flex-shrink: 0; }
+.ctrl-btn { flex: 1; padding: 15px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-size: 15px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.ctrl-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ctrl-btn:active { background: var(--bg3); }
+.ctrl-btn.primary { background: var(--accent); border-color: var(--accent); color: #111; }
+.ctrl-btn.primary:active { background: var(--accent2); border-color: var(--accent2); }
+.ctrl-btn.stop { border-color: var(--danger); color: var(--danger); }
+.ctrl-btn.stop:active { background: #2a1212; }
+
+/* daily strip — sessions screen + timer screen */
+.daily-strip { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 12px; }
+.daily-strip .ds-left { font-size: 13px; color: var(--text2); }
+.daily-strip .ds-left strong { color: var(--accent); font-weight: 500; }
+.daily-strip .ds-bar-wrap { flex: 1; background: var(--bg3); border-radius: 999px; height: 4px; overflow: hidden; }
+.daily-strip .ds-bar { height: 100%; border-radius: 999px; background: var(--accent); transition: width 0.4s ease; }
+.daily-strip .ds-bar.done { background: var(--success); }
+.daily-strip .ds-right { font-size: 12px; color: var(--text3); white-space: nowrap; }
+.daily-strip .ds-right.done { color: var(--success); }
+
+/* timer daily sub-display */
+.timer-daily { font-size: 13px; color: var(--text3); margin-top: 18px; letter-spacing: 0.03em; text-align: center; }
+.timer-daily.done { color: var(--success); }
+
+/* ══ STORICO ══ */
+#screen-history { overflow: hidden; }
+.history-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.stat-cell { background: var(--bg); padding: 14px 12px; text-align: center; }
+.stat-cell .sv { font-size: 20px; font-weight: 500; color: var(--accent); }
+.stat-cell .sl { font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 2px; }
+.history-list { flex: 1; overflow-y: auto; }
+.history-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.history-item:active { background: var(--bg2); }
+.hi-date { font-size: 14px; color: var(--text); }
+.hi-time { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.hi-dur { font-size: 16px; font-weight: 500; color: var(--accent); }
+.history-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text3); font-size: 14px; text-align: center; padding: 40px; line-height: 1.8; }
+
+/* ══ OBIETTIVO ══ */
+#screen-goal { overflow-y: auto; padding: 20px; gap: 14px; }
+
+.goal-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 40px 20px; text-align: center; }
+.goal-empty p { color: var(--text3); font-size: 14px; line-height: 1.7; }
+
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.card-title { font-size: 11px; letter-spacing: 0.12em; color: var(--text3); text-transform: uppercase; font-weight: 500; }
+
+/* daily card */
+.daily-main { display: flex; justify-content: space-between; align-items: flex-end; }
+.daily-done { font-size: 32px; font-weight: 300; color: var(--accent); line-height: 1; }
+.daily-done span { font-size: 14px; color: var(--text3); margin-left: 2px; }
+.daily-target { font-size: 13px; color: var(--text2); text-align: right; line-height: 1.5; }
+.daily-bar { background: var(--bg3); border-radius: 999px; height: 6px; overflow: hidden; }
+.daily-bar-fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width 0.5s ease; }
+.daily-bar-fill.done { background: var(--success); }
+.daily-remaining { font-size: 13px; color: var(--text2); }
+.daily-remaining.done { color: var(--success); }
+
+/* goal card */
+.goal-name { font-size: 17px; font-weight: 500; color: var(--text); }
+.goal-progress-bar { background: var(--bg3); border-radius: 999px; height: 8px; overflow: hidden; }
+.goal-progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 0.6s ease; }
+.pct-row { display: flex; justify-content: flex-end; }
+.pct-label { font-size: 12px; color: var(--text3); }
+.goal-row { display: flex; justify-content: space-between; align-items: baseline; }
+.gr-label { font-size: 12px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+.gr-val { font-size: 15px; font-weight: 500; color: var(--text); }
+.gr-val.accent { color: var(--accent); }
+.gr-val.muted { color: var(--text2); }
+.goal-divider { border: none; border-top: 1px solid var(--border); }
+.goal-dates { display: flex; justify-content: space-between; }
+.goal-date-block { display: flex; flex-direction: column; gap: 3px; }
+.goal-date-block.end { text-align: right; }
+.gd-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+.gd-val { font-size: 14px; color: var(--text2); }
+.goal-projection { font-size: 13px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--bg3); color: var(--text2); line-height: 1.5; }
+.goal-projection.ok { color: var(--success); }
+.goal-projection.warn { color: #d4903a; }
+.goal-projection.done { color: var(--accent); }
+
+/* ══ GOAL EDIT ══ */
+#screen-goal-edit { overflow-y: auto; }
+.edit-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.edit-header h2 { font-size: 16px; font-weight: 500; flex: 1; }
+.edit-body { padding: 24px 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; }
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500; }
+.field input, .field select { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 16px; padding: 12px 14px; outline: none; width: 100%; }
+.field input:focus, .field select:focus { border-color: var(--accent); }
+.field select option { background: var(--bg2); }
+.field-hint { font-size: 12px; color: var(--text3); margin-top: -4px; }
+.field-row { display: flex; gap: 10px; }
+.field-row .field { flex: 1; }
+.target-row { display: flex; gap: 10px; align-items: flex-end; }
+.target-row .field:first-child { flex: 1; }
+.target-row .field:last-child { flex: 0 0 110px; }
+.section-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+.edit-actions { display: flex; flex-direction: column; gap: 10px; padding: 0 20px 32px; flex-shrink: 0; }
+.btn-full { width: 100%; padding: 15px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-size: 15px; font-weight: 500; cursor: pointer; }
+.btn-full:active { background: var(--bg3); }
+.btn-full.primary { background: var(--accent); border-color: var(--accent); color: #111; }
+.btn-full.primary:active { background: var(--accent2); }
+.btn-full.danger { border-color: var(--danger); color: var(--danger); background: none; }
+.btn-full.danger:active { background: #2a1212; }
+
+/* MODAL */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 320px; }
+.modal h3 { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+.modal p { font-size: 14px; color: var(--text2); margin-bottom: 20px; line-height: 1.5; }
+.modal input[type=number] { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 24px; text-align: center; padding: 12px; outline: none; -moz-appearance: textfield; }
+.modal input[type=number]::-webkit-outer-spin-button, .modal input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+.modal input[type=number]:focus { border-color: var(--accent); }
+.modal-hint { font-size: 12px; color: var(--text3); text-align: center; margin-top: 8px; }
+.modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+.modal-btns button { flex: 1; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg3); color: var(--text); font-size: 15px; cursor: pointer; }
+.modal-btns button.confirm { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 500; }
+.modal-btns button.danger { border-color: var(--danger); color: var(--danger); background: none; }
+.modal-btns button:active { opacity: 0.8; }
+
+/* TOAST */
+#toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--bg3); border: 1px solid var(--border); color: var(--text); font-size: 13px; padding: 10px 18px; border-radius: 999px; opacity: 0; transition: opacity 0.3s, transform 0.3s; pointer-events: none; white-space: nowrap; z-index: 200; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SESSIONI -->
+  <div id="screen-sessions" class="screen active">
+    <div class="daily-strip" id="sessions-daily-strip" style="display:none"></div>
+    <div class="sessions-label">scegli la durata</div>
+    <div class="sessions-grid" id="sessions-grid"></div>
+  </div>
+
+  <!-- TIMER -->
+  <div id="screen-timer" class="screen">
+    <div class="timer-top">
+      <button class="back-btn" onclick="goBack()" aria-label="Indietro">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="timer-session-name" id="timer-session-name"></span>
+    </div>
+    <div class="timer-body">
+      <div class="timer-ring-wrap">
+        <svg id="timer-svg" viewBox="0 0 240 240">
+          <circle id="ring-track" cx="120" cy="120" r="108"/>
+          <circle id="ring-progress" cx="120" cy="120" r="108"/>
+        </svg>
+        <div class="timer-center">
+          <div id="timer-display">--:--</div>
+          <div id="timer-status">pronto</div>
+        </div>
+      </div>
+      <div id="timer-daily" class="timer-daily" style="display:none"></div>
+    </div>
+    <div class="timer-controls" id="timer-controls"></div>
+  </div>
+
+  <!-- STORICO -->
+  <div id="screen-history" class="screen">
+    <div class="history-stats" id="history-stats"></div>
+    <div class="history-list" id="history-list"></div>
+  </div>
+
+  <!-- OBIETTIVO -->
+  <div id="screen-goal" class="screen"></div>
+
+  <!-- GOAL EDIT -->
+  <div id="screen-goal-edit" class="screen">
+    <div class="edit-header">
+      <button class="back-btn" onclick="showScreen('goal')" aria-label="Indietro">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <h2 id="edit-title">Crea obiettivo</h2>
+    </div>
+    <div class="edit-body">
+      <div class="section-label">Obiettivo a lungo termine</div>
+      <div class="field">
+        <label>Nome / intenzione</label>
+        <input type="text" id="edit-name" placeholder="es. Kosen-rufu 2026">
+      </div>
+      <div class="field">
+        <label>Target</label>
+        <div class="target-row">
+          <div class="field">
+            <input type="number" id="edit-target-val" min="1" placeholder="1000000">
+          </div>
+          <div class="field">
+            <select id="edit-target-unit">
+              <option value="daimoku">daimoku</option>
+              <option value="ore">ore</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-hint" id="edit-target-hint">= 333h 20m</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Data inizio</label>
+          <input type="date" id="edit-start">
+        </div>
+        <div class="field">
+          <label>Data obiettivo</label>
+          <input type="date" id="edit-end">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Pregresso (ore)</label>
+          <input type="number" id="edit-pre-h" min="0" placeholder="74">
+        </div>
+        <div class="field">
+          <label>Pregresso (min)</label>
+          <input type="number" id="edit-pre-m" min="0" max="59" placeholder="15">
+        </div>
+      </div>
+      <div class="field-hint" style="margin-top:-12px">Daimoku fatti prima di usare l'app</div>
+    </div>
+    <div class="edit-actions">
+      <button class="btn-full primary" onclick="saveGoal()">Salva</button>
+      <button class="btn-full danger" id="btn-annulla-goal" onclick="confirmAnnullaGoal()" style="display:none">Annulla obiettivo</button>
+    </div>
+  </div>
+
+  <!-- NAV -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="nav-btn active" id="nav-sessions" onclick="showScreen('sessions')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+      Sessioni
+    </button>
+    <button class="nav-btn" id="nav-history" onclick="showScreen('history')">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Storico
+    </button>
+    <button class="nav-btn" id="nav-goal" onclick="showScreen('goal')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/></svg>
+      Obiettivo
+    </button>
+  </nav>
+</div>
+
+<!-- MODAL: modifica record -->
+<div class="modal-overlay" id="modal-edit-record">
+  <div class="modal">
+    <h3>Modifica sessione</h3>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:4px">
+      <div class="field">
+        <label>Data</label>
+        <input type="date" id="er-date">
+      </div>
+      <div class="field">
+        <label>Ora</label>
+        <input type="time" id="er-time">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Durata (ore)</label>
+          <input type="number" id="er-dur-h" min="0" max="23" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Durata (min)</label>
+          <input type="number" id="er-dur-m" min="0" max="59" placeholder="30">
+        </div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="danger" onclick="deleteRecord()">Elimina</button>
+      <button class="confirm" onclick="saveRecord()">Salva</button>
+    </div>
+    <div class="modal-btns" style="margin-top:8px">
+      <button onclick="closeModal('modal-edit-record')">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: target giornaliero -->
+<div class="modal-overlay" id="modal-daily">
+  <div class="modal">
+    <h3>Target giornaliero</h3>
+    <input type="number" id="daily-input" min="1" max="480" placeholder="80">
+    <div class="modal-hint">minuti al giorno</div>
+    <div class="modal-btns">
+      <button onclick="closeModal('modal-daily')">Annulla</button>
+      <button class="confirm" onclick="saveDailyTarget()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: aggiungi sessione -->
+<div class="modal-overlay" id="modal-add">
+  <div class="modal">
+    <h3>Nuova sessione</h3>
+    <input type="number" id="custom-min-input" min="1" max="480" placeholder="60">
+    <div class="modal-hint">minuti</div>
+    <div class="modal-btns">
+      <button onclick="closeModal('modal-add')">Annulla</button>
+      <button class="confirm" onclick="confirmCustom()">Aggiungi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: conferma annullamento goal -->
+<div class="modal-overlay" id="modal-confirm-annulla">
+  <div class="modal">
+    <h3>Annulla obiettivo</h3>
+    <p>Sei sicuro? L'obiettivo verrà eliminato. Lo storico delle sessioni rimarrà intatto.</p>
+    <div class="modal-btns">
+      <button onclick="closeModal('modal-confirm-annulla')">No, torna</button>
+      <button class="danger" onclick="annullaGoal()">Sì, annulla</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ─── COSTANTI ─────────────────────────────────────────
+const DAIMOKU_PER_MIN = 50;
+const DAIMOKU_PER_ORA = 3000;
+const CIRC = 2 * Math.PI * 108;
+const NAV_SCREENS = ['sessions','history','goal'];
+
+// ─── STATE ────────────────────────────────────────────
+let sessionDurations = JSON.parse(localStorage.getItem('dmk_durations') || 'null') || [5,10,15,20,30,35,45,60,80,90,120];
+let history = JSON.parse(localStorage.getItem('dmk_history') || '[]');
+// migrate old single goal to array
+let goals = (()=>{
+  const arr = localStorage.getItem('dmk_goals');
+  if (arr) return JSON.parse(arr);
+  const old = localStorage.getItem('dmk_goal');
+  if (old) { const g=JSON.parse(old); return g ? [g] : []; }
+  return [];
+})();
+// daily target — standalone, migrated from first goal that had dailyMins
+let dailyMins = (()=>{
+  const d = localStorage.getItem('dmk_daily');
+  if (d) return parseInt(d) || 0;
+  const g = goals.find(g => g.dailyMins);
+  return g ? g.dailyMins : 0;
+})();
+
+let currentDur = 0, totalSecs = 0, remainSecs = 0;
+let timerState = 'idle';
+let intervalId = null, startedAt = null, pausedElapsed = 0;
+let wakeLock = null;
+
+function save() {
+  localStorage.setItem('dmk_durations', JSON.stringify(sessionDurations));
+  localStorage.setItem('dmk_history', JSON.stringify(history));
+  localStorage.setItem('dmk_goals', JSON.stringify(goals));
+  localStorage.setItem('dmk_daily', String(dailyMins));
+}
+
+// ─── NAV ──────────────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  const nb = document.getElementById('nav-' + name);
+  if (nb) nb.classList.add('active');
+  document.getElementById('bottom-nav').style.display = NAV_SCREENS.includes(name) ? 'flex' : 'none';
+  if (name === 'history') renderHistory();
+  if (name === 'goal') renderGoal();
+  if (name === 'sessions') renderDailyStrip();
+}
+
+// ─── DAILY STRIP (sessions + timer) ──────────────────
+function getDailyInfo() {
+  if (!dailyMins) return null;
+  const targetSecs = dailyMins * 60;
+  const doneSecs = getTodayDoneSecs();
+  const pct = Math.min(100, Math.round(doneSecs / targetSecs * 100));
+  const remainSecs = Math.max(0, targetSecs - doneSecs);
+  const isDone = doneSecs >= targetSecs;
+  return { targetSecs, doneSecs, pct, remainSecs, isDone };
+}
+
+function renderDailyStrip() {
+  const strip = document.getElementById('sessions-daily-strip');
+  const info = getDailyInfo();
+  if (!info) { strip.style.display = 'none'; return; }
+  strip.style.display = 'flex';
+  strip.innerHTML = `
+    <div class="ds-left">Oggi <strong>${fmtHM(info.doneSecs)}</strong> / ${fmtHM(info.targetSecs)}</div>
+    <div class="ds-bar-wrap"><div class="ds-bar${info.isDone?' done':''}" style="width:${info.pct}%"></div></div>
+    <div class="ds-right${info.isDone?' done':''}">${info.isDone ? '✓' : 'mancano ' + fmtHM(info.remainSecs)}</div>`;
+}
+
+function updateTimerDaily(extraSecs) {
+  const el = document.getElementById('timer-daily');
+  const info = getDailyInfo();
+  if (!info) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const effectiveDone = info.doneSecs + (extraSecs || 0);
+  const remain = Math.max(0, info.targetSecs - effectiveDone);
+  const isDone = effectiveDone >= info.targetSecs;
+  el.className = 'timer-daily' + (isDone ? ' done' : '');
+  el.textContent = isDone ? '✓ target giornaliero raggiunto' : '— ' + fmtHM(remain);
+}
+
+// ─── SESSIONI ─────────────────────────────────────────
+function renderSessions() {
+  const grid = document.getElementById('sessions-grid');
+  grid.innerHTML = '';
+  sessionDurations.forEach((min, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'session-btn';
+    btn.innerHTML = `<span class="s-num">${min}</span><span class="s-unit">min</span><button class="del-btn" aria-label="Rimuovi">✕</button>`;
+    btn.addEventListener('click', () => openTimer(min * 60, min + ' min'));
+    btn.querySelector('.del-btn').addEventListener('click', e => { e.stopPropagation(); removeSession(i); });
+    grid.appendChild(btn);
+  });
+  const inf = document.createElement('button');
+  inf.className = 'session-btn infinite';
+  inf.innerHTML = `<span class="s-num">∞</span><span class="s-unit">aperta</span>`;
+  inf.addEventListener('click', () => openTimer(0, 'sessione aperta'));
+  grid.appendChild(inf);
+  const add = document.createElement('button');
+  add.className = 'session-btn custom-add';
+  add.innerHTML = `<span class="s-num">+</span><span class="s-unit">personaliz.</span>`;
+  add.addEventListener('click', () => openModal('modal-add'));
+  grid.appendChild(add);
+}
+
+function removeSession(idx) { sessionDurations.splice(idx, 1); save(); renderSessions(); }
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (id === 'modal-add') document.getElementById('custom-min-input').value = '';
+}
+
+function confirmCustom() {
+  const val = parseInt(document.getElementById('custom-min-input').value);
+  if (!val || val < 1 || val > 480) { showToast('Inserisci un valore tra 1 e 480'); return; }
+  if (!sessionDurations.includes(val)) { sessionDurations.push(val); sessionDurations.sort((a,b)=>a-b); save(); renderSessions(); }
+  closeModal('modal-add');
+}
+document.getElementById('custom-min-input').addEventListener('keydown', e => { if (e.key==='Enter') confirmCustom(); if (e.key==='Escape') closeModal('modal-add'); });
+document.querySelectorAll('.modal-overlay').forEach(m => { m.addEventListener('click', e => { if (e.target===m) m.classList.remove('open'); }); });
+
+// ─── TIMER ────────────────────────────────────────────
+function openTimer(secs, label) {
+  currentDur = secs; totalSecs = secs; remainSecs = secs;
+  pausedElapsed = 0; timerState = 'idle';
+  clearInterval(intervalId);
+  document.getElementById('timer-session-name').textContent = label;
+  updateTimerDisplay(secs); updateRing(1);
+  setTimerStatus('pronto'); renderControls('idle');
+  updateTimerDaily(0);
+  showScreen('timer');
+}
+
+function pad(n) { return String(n).padStart(2,'0'); }
+function fmtTimer(s) {
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return h>0 ? pad(h)+':'+pad(m)+':'+pad(sec) : pad(m)+':'+pad(sec);
+}
+
+function updateTimerDisplay(s) { document.getElementById('timer-display').textContent = fmtTimer(currentDur===0 ? remainSecs : s); }
+function updateRing(ratio) {
+  const p = document.getElementById('ring-progress');
+  p.style.strokeDasharray = CIRC;
+  if (currentDur===0) { p.style.strokeDashoffset=0; p.style.stroke='var(--accent)'; return; }
+  p.style.strokeDashoffset = CIRC*(1-ratio);
+  p.style.stroke = ratio>0.33 ? 'var(--accent)' : ratio>0.1 ? '#d4903a' : 'var(--danger)';
+}
+function setTimerStatus(t) { document.getElementById('timer-status').textContent = t; }
+
+function svgI(d) { return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`; }
+
+function renderControls(state) {
+  const c = document.getElementById('timer-controls');
+  const play = svgI('<polygon points="5 3 19 12 5 21 5 3"/>');
+  const pause = svgI('<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>');
+  const stop = svgI('<rect x="3" y="3" width="18" height="18" rx="2"/>');
+  const back = svgI('<polyline points="15 18 9 12 15 6"/>');
+  if (state==='idle') c.innerHTML=`<button class="ctrl-btn primary" onclick="startTimer()">${play} Inizia</button>`;
+  else if (state==='running') c.innerHTML=`<button class="ctrl-btn" onclick="pauseTimer()">${pause} Pausa</button><button class="ctrl-btn stop" onclick="stopTimer()">${stop} Termina</button>`;
+  else if (state==='paused') c.innerHTML=`<button class="ctrl-btn primary" onclick="resumeTimer()">${play} Riprendi</button><button class="ctrl-btn stop" onclick="stopTimer()">${stop} Termina</button>`;
+  else if (state==='done') c.innerHTML=`<button class="ctrl-btn primary" onclick="goBackDone()">${back} Nuova sessione</button>`;
+}
+
+async function acquireWakeLock() { if ('wakeLock' in navigator) try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {} }
+function releaseWakeLock() { if (wakeLock) { wakeLock.release(); wakeLock=null; } }
+
+function startTimer() {
+  timerState='running'; startedAt=Date.now(); pausedElapsed=0;
+  if (currentDur===0) remainSecs=0;
+  setTimerStatus('in corso'); renderControls('running');
+  acquireWakeLock(); intervalId=setInterval(tick,1000);
+  saveTimerState();
+}
+
+function tick() {
+  const elapsed = Math.floor((Date.now()-startedAt)/1000)+pausedElapsed;
+  if (currentDur===0) { remainSecs=elapsed; updateTimerDisplay(remainSecs); updateRing(1); }
+  else {
+    remainSecs=Math.max(0,totalSecs-elapsed);
+    updateTimerDisplay(remainSecs); updateRing(remainSecs/totalSecs);
+    if (remainSecs<=0) { clearInterval(intervalId); completeTimer(elapsed); return; }
+  }
+  updateTimerDaily(elapsed);
+}
+
+function pauseTimer() { clearInterval(intervalId); pausedElapsed+=Math.floor((Date.now()-startedAt)/1000); timerState='paused'; setTimerStatus('in pausa'); renderControls('paused'); releaseWakeLock(); saveTimerState(); }
+function resumeTimer() { startedAt=Date.now(); timerState='running'; setTimerStatus('in corso'); renderControls('running'); acquireWakeLock(); intervalId=setInterval(tick,1000); saveTimerState(); }
+
+function stopTimer() {
+  clearInterval(intervalId); releaseWakeLock();
+  const elapsed = timerState==='paused' ? pausedElapsed : pausedElapsed+Math.floor((Date.now()-startedAt)/1000);
+  if (elapsed>=30) { saveSession(elapsed,false); setTimerStatus('salvata'); showToast('Sessione salvata'); }
+  else setTimerStatus('troppo breve');
+  timerState='done'; renderControls('done'); clearTimerState();
+}
+
+function completeTimer(elapsed) { releaseWakeLock(); saveSession(elapsed,true); timerState='done'; setTimerStatus('completata ✓'); renderControls('done'); playBell(); clearTimerState(); }
+
+function goBack() { if (timerState==='running') pauseTimer(); document.getElementById('bottom-nav').style.display='flex'; showScreen('sessions'); }
+function goBackDone() { document.getElementById('bottom-nav').style.display='flex'; showScreen('sessions'); }
+
+function playBell() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const partials = [
+      { freq: 432,  amp: 0.6,  decay: 6.0 },
+      { freq: 1192, amp: 0.25, decay: 4.5 },
+      { freq: 2333, amp: 0.1,  decay: 3.0 },
+      { freq: 3857, amp: 0.05, decay: 1.8 },
+    ];
+    partials.forEach(p => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.frequency.value = 5.5; lfoGain.gain.value = 1.2;
+      lfo.connect(lfoGain); lfoGain.connect(osc.frequency); lfo.start();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = p.freq;
+      const t = ctx.currentTime;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(p.amp, t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + p.decay);
+      osc.start(t); osc.stop(t + p.decay); lfo.stop(t + p.decay);
+    });
+  } catch(e) {}
+}
+
+// ─── STORICO ──────────────────────────────────────────
+function saveSession(secs, completed) { history.unshift({date:new Date().toISOString(), dur:secs, completed}); save(); }
+
+function fmtDur(secs) {
+  const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60), s=secs%60;
+  if (h>0&&m>0) return `${h}h ${m}m`;
+  if (h>0) return `${h}h`;
+  if (m>0&&s===0) return `${m} min`;
+  if (m>0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function renderHistory() {
+  const stats=document.getElementById('history-stats'), list=document.getElementById('history-list');
+  const total=history.reduce((a,s)=>a+s.dur,0);
+  const todayStr=new Date().toDateString();
+  const todaySecs=history.filter(s=>new Date(s.date).toDateString()===todayStr).reduce((a,s)=>a+s.dur,0);
+  stats.innerHTML=`
+    <div class="stat-cell"><div class="sv">${history.length}</div><div class="sl">sessioni</div></div>
+    <div class="stat-cell"><div class="sv">${fmtDur(total)}</div><div class="sl">totale</div></div>
+    <div class="stat-cell"><div class="sv">${fmtDur(todaySecs)||'0'}</div><div class="sl">oggi</div></div>`;
+  if (!history.length) { list.innerHTML='<div class="history-empty">Nessuna sessione ancora.<br>Inizia la prima dalla tab Sessioni.</div>'; return; }
+  list.innerHTML=history.map((s,i) => {
+    const d=new Date(s.date);
+    return `<div class="history-item" onclick="openEditRecord(${i})">
+      <div><div class="hi-date">${d.toLocaleDateString('it-IT',{weekday:'short',day:'numeric',month:'short'})}</div>
+      <div class="hi-time">${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}${s.completed?'':' · interrotta'}</div></div>
+      <div class="hi-dur">${fmtDur(s.dur)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── MODIFICA RECORD ──────────────────────────────────
+let editingRecordIdx = null;
+
+function openEditRecord(idx) {
+  editingRecordIdx = idx;
+  const s = history[idx];
+  const d = new Date(s.date);
+  document.getElementById('er-date').value = d.toISOString().slice(0,10);
+  document.getElementById('er-time').value = d.toTimeString().slice(0,5);
+  document.getElementById('er-dur-h').value = Math.floor(s.dur / 3600) || '';
+  document.getElementById('er-dur-m').value = Math.floor((s.dur % 3600) / 60) || '';
+  openModal('modal-edit-record');
+}
+
+function saveRecord() {
+  const date = document.getElementById('er-date').value;
+  const time = document.getElementById('er-time').value;
+  const h = parseInt(document.getElementById('er-dur-h').value) || 0;
+  const m = parseInt(document.getElementById('er-dur-m').value) || 0;
+  if (!date || !time) { showToast('Inserisci data e ora'); return; }
+  const dur = h*3600 + m*60;
+  if (dur < 10) { showToast('Durata troppo breve'); return; }
+  history[editingRecordIdx].date = new Date(date + 'T' + time).toISOString();
+  history[editingRecordIdx].dur = dur;
+  history.sort((a,b) => new Date(b.date) - new Date(a.date));
+  save();
+  closeModal('modal-edit-record');
+  renderHistory();
+  showToast('Sessione aggiornata');
+}
+
+function deleteRecord() {
+  history.splice(editingRecordIdx, 1);
+  save();
+  closeModal('modal-edit-record');
+  renderHistory();
+  showToast('Sessione eliminata');
+}
+
+// ─── OBIETTIVO ────────────────────────────────────────
+function calcGoalDone(g) {
+  if (!g) return 0;
+  const startDate=new Date(g.startDate); startDate.setHours(0,0,0,0);
+  return history.filter(s=>new Date(s.date)>=startDate).reduce((a,s)=>a+s.dur,0) + (g.preSecs||0);
+}
+
+function goalTargetSecs(g) {
+  return g.targetUnit==='ore' ? g.targetVal*3600 : Math.round(g.targetVal/DAIMOKU_PER_MIN*60);
+}
+
+function fmtHM(secs) {
+  const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60);
+  if (h>0&&m>0) return `${h}h ${m}m`;
+  if (h>0) return `${h}h`;
+  return `${m}m`;
+}
+
+function getTodayDoneSecs() {
+  const todayStr=new Date().toDateString();
+  return history.filter(s=>new Date(s.date).toDateString()===todayStr).reduce((a,s)=>a+s.dur,0);
+}
+
+function renderGoal() {
+  const scr=document.getElementById('screen-goal');
+  let html='';
+
+  // ── CARD GIORNALIERA ──
+  const dailyInfo = getDailyInfo();
+  if (dailyInfo) {
+    const {doneSecs, targetSecs, pct, remainSecs:rem, isDone} = dailyInfo;
+    html += `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="card-title">Oggi</div>
+        <button onclick="openDailyEdit()" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:2px 0">Modifica</button>
+      </div>
+      <div class="daily-main">
+        <div class="daily-done">${fmtHM(doneSecs)}<span>fatti</span></div>
+        <div class="daily-target">target ${fmtHM(targetSecs)}</div>
+      </div>
+      <div class="daily-bar"><div class="daily-bar-fill${isDone?' done':''}" style="width:${pct}%"></div></div>
+      <div class="daily-remaining${isDone?' done':''}">${isDone ? '✓ Obiettivo giornaliero raggiunto' : 'Mancano ' + fmtHM(rem)}</div>
+    </div>`;
+  } else {
+    html += `<div class="card" style="flex-direction:row;align-items:center;justify-content:space-between">
+      <span style="font-size:14px;color:var(--text3)">Nessun target giornaliero</span>
+      <button onclick="openDailyEdit()" style="background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer">Imposta</button>
+    </div>`;
+  }
+
+  // ── CARDS OBIETTIVI ──
+  if (!goals.length) {
+    html += `<div class="goal-empty">
+      <p>Nessun obiettivo attivo.</p>
+      <button class="btn-full primary" style="max-width:220px" onclick="openGoalEdit(-1)">Crea obiettivo</button>
+    </div>`;
+  } else {
+    goals.forEach((g, idx) => {
+      const targetSecs=goalTargetSecs(g);
+      const doneSecs=Math.min(calcGoalDone(g),targetSecs);
+      const leftSecs=Math.max(0,targetSecs-doneSecs);
+      const pct=Math.min(100,Math.round(doneSecs/targetSecs*100));
+      const startD=new Date(g.startDate).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+      const endD=new Date(g.endDate).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+      let projHTML='';
+      if (pct<100) {
+        const daysSince=Math.max(1,Math.round((Date.now()-new Date(g.startDate))/86400000));
+        const spd=doneSecs/daysSince;
+        if (spd>0) {
+          const daysNeeded=Math.ceil(leftSecs/spd);
+          const projDate=new Date(); projDate.setDate(projDate.getDate()+daysNeeded);
+          const cls=projDate<=new Date(g.endDate)?'ok':'warn';
+          const projStr=projDate.toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+          projHTML=`<div class="goal-projection ${cls}">Al ritmo attuale finisci il ${projStr}${cls==='ok'?' — entro l\'obiettivo':' — oltre la data obiettivo'}.</div>`;
+        }
+      } else {
+        projHTML=`<div class="goal-projection done">Obiettivo raggiunto! 🎉</div>`;
+      }
+      html+=`<div class="card">
+        <div class="card-title">Obiettivo</div>
+        ${g.name?`<div class="goal-name">${g.name}</div>`:''}
+        <div>
+          <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${pct}%"></div></div>
+          <div class="pct-row"><span class="pct-label">${pct}%</span></div>
+        </div>
+        <div class="goal-row"><span class="gr-label">Fatto</span><span class="gr-val accent">${fmtHM(doneSecs)}</span></div>
+        <div class="goal-row"><span class="gr-label">Rimane</span><span class="gr-val muted">${fmtHM(leftSecs)}</span></div>
+        <hr class="goal-divider">
+        <div class="goal-dates">
+          <div class="goal-date-block"><span class="gd-label">Inizio</span><span class="gd-val">${startD}</span></div>
+          <div class="goal-date-block end"><span class="gd-label">Obiettivo</span><span class="gd-val">${endD}</span></div>
+        </div>
+        ${projHTML}
+        <button class="btn-full" style="margin-top:4px" onclick="openGoalEdit(${idx})">Modifica</button>
+      </div>`;
+    });
+    html+=`<button class="btn-full primary" onclick="openGoalEdit(-1)">+ Nuovo obiettivo</button>`;
+  }
+
+  scr.innerHTML=html;
+}
+
+// ─── DAILY TARGET ─────────────────────────────────────
+function openDailyEdit() {
+  document.getElementById('daily-input').value = dailyMins || '';
+  openModal('modal-daily');
+}
+function saveDailyTarget() {
+  const val = parseInt(document.getElementById('daily-input').value) || 0;
+  dailyMins = val;
+  save(); closeModal('modal-daily'); renderGoal(); renderDailyStrip();
+  showToast(val ? 'Target giornaliero salvato' : 'Target giornaliero rimosso');
+}
+
+// ─── GOAL EDIT ────────────────────────────────────────
+let editingGoalIdx = -1; // -1 = new
+
+function openGoalEdit(idx) {
+  editingGoalIdx = idx;
+  const g = idx >= 0 ? goals[idx] : null;
+  document.getElementById('edit-title').textContent = g ? 'Modifica obiettivo' : 'Nuovo obiettivo';
+  document.getElementById('btn-annulla-goal').style.display = g ? 'block' : 'none';
+  if (g) {
+    document.getElementById('edit-name').value=g.name||'';
+    document.getElementById('edit-target-val').value=g.targetVal;
+    document.getElementById('edit-target-unit').value=g.targetUnit;
+    document.getElementById('edit-start').value=g.startDate;
+    document.getElementById('edit-end').value=g.endDate;
+    document.getElementById('edit-pre-h').value=Math.floor((g.preSecs||0)/3600)||'';
+    document.getElementById('edit-pre-m').value=Math.floor(((g.preSecs||0)%3600)/60)||'';
+  } else {
+    ['edit-name','edit-pre-h','edit-pre-m','edit-end'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('edit-target-val').value='1000000';
+    document.getElementById('edit-target-unit').value='daimoku';
+    document.getElementById('edit-start').value=new Date().toISOString().slice(0,10);
+  }
+  updateTargetHint();
+  showScreen('goal-edit');
+}
+
+function updateTargetHint() {
+  const val=parseFloat(document.getElementById('edit-target-val').value);
+  const unit=document.getElementById('edit-target-unit').value;
+  const hint=document.getElementById('edit-target-hint');
+  if (!val||isNaN(val)) { hint.textContent=''; return; }
+  if (unit==='daimoku') { const tm=val/DAIMOKU_PER_MIN; hint.textContent=`= ${Math.floor(tm/60)}h ${Math.round(tm%60)}m`; }
+  else { hint.textContent=`= ${Math.round(val*DAIMOKU_PER_ORA).toLocaleString('it-IT')} daimoku`; }
+}
+document.getElementById('edit-target-val').addEventListener('input', updateTargetHint);
+document.getElementById('edit-target-unit').addEventListener('change', updateTargetHint);
+
+function saveGoal() {
+  const targetVal=parseFloat(document.getElementById('edit-target-val').value);
+  const targetUnit=document.getElementById('edit-target-unit').value;
+  const startDate=document.getElementById('edit-start').value;
+  const endDate=document.getElementById('edit-end').value;
+  if (!targetVal||isNaN(targetVal)||targetVal<=0) { showToast('Inserisci un target valido'); return; }
+  if (!startDate) { showToast('Inserisci la data di inizio'); return; }
+  if (!endDate) { showToast('Inserisci la data obiettivo'); return; }
+  if (endDate<=startDate) { showToast("La data obiettivo deve essere dopo l'inizio"); return; }
+  const preH=parseInt(document.getElementById('edit-pre-h').value)||0;
+  const preM=parseInt(document.getElementById('edit-pre-m').value)||0;
+  const g = {
+    name: document.getElementById('edit-name').value.trim(),
+    targetVal, targetUnit, startDate, endDate,
+    preSecs: preH*3600+preM*60
+  };
+  if (editingGoalIdx >= 0) goals[editingGoalIdx] = g;
+  else goals.push(g);
+  save(); showToast('Obiettivo salvato'); showScreen('goal');
+}
+
+function confirmAnnullaGoal() { openModal('modal-confirm-annulla'); }
+function annullaGoal() {
+  if (editingGoalIdx >= 0) goals.splice(editingGoalIdx, 1);
+  save(); closeModal('modal-confirm-annulla'); showScreen('goal'); showToast('Obiettivo annullato');
+}
+
+// ─── TOAST ────────────────────────────────────────────
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ─── SERVICE WORKER ───────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+
+// ─── TIMER STATE PERSISTENCE ──────────────────────────
+function saveTimerState() {
+  localStorage.setItem('dmk_timer', JSON.stringify({
+    currentDur, totalSecs, pausedElapsed,
+    startedAt: timerState==='running' ? startedAt : null,
+    timerState,
+    label: document.getElementById('timer-session-name').textContent
+  }));
+}
+
+function clearTimerState() {
+  localStorage.removeItem('dmk_timer');
+}
+
+function restoreTimerState() {
+  const raw = localStorage.getItem('dmk_timer');
+  if (!raw) return false;
+  const ts = JSON.parse(raw);
+  if (!ts || ts.timerState==='done' || ts.timerState==='idle') { clearTimerState(); return false; }
+
+  currentDur = ts.currentDur;
+  totalSecs = ts.totalSecs;
+  document.getElementById('timer-session-name').textContent = ts.label || '';
+
+  if (ts.timerState==='running' && ts.startedAt) {
+    // was running when closed — count time passed as paused elapsed
+    const extraElapsed = Math.floor((Date.now() - ts.startedAt) / 1000);
+    pausedElapsed = ts.pausedElapsed + extraElapsed;
+    timerState = 'paused'; // restore as paused so user can resume
+  } else {
+    pausedElapsed = ts.pausedElapsed;
+    timerState = ts.timerState;
+  }
+
+  // reconstruct display
+  const elapsed = pausedElapsed;
+  if (currentDur===0) {
+    remainSecs = elapsed;
+    updateTimerDisplay(remainSecs); updateRing(1);
+  } else {
+    remainSecs = Math.max(0, totalSecs - elapsed);
+    updateTimerDisplay(remainSecs); updateRing(remainSecs/totalSecs);
+  }
+  setTimerStatus('in pausa');
+  renderControls('paused');
+  updateTimerDaily(elapsed);
+  showScreen('timer');
+  return true;
+}
+
+// ─── INIT ─────────────────────────────────────────────
+renderSessions();
+renderDailyStrip();
+restoreTimerState();
+</script>
+</body>
+</html>
