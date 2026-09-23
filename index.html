@@ -224,6 +224,9 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
   <!-- STORICO -->
   <div id="screen-history" class="screen">
     <div class="history-stats" id="history-stats"></div>
+    <div style="display:flex;justify-content:flex-end;padding:8px 20px 0;flex-shrink:0">
+      <button onclick="openModal('modal-clear-history')" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:4px 0">Cancella tutto</button>
+    </div>
     <div class="history-list" id="history-list"></div>
   </div>
 
@@ -360,6 +363,18 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
     <div class="modal-btns">
       <button onclick="closeModal('modal-add')">Annulla</button>
       <button class="confirm" onclick="confirmCustom()">Aggiungi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: conferma cancella storico -->
+<div class="modal-overlay" id="modal-clear-history">
+  <div class="modal">
+    <h3>Cancella storico</h3>
+    <p>Vuoi eliminare tutte le sessioni registrate? Il pregresso negli obiettivi verrà aggiornato automaticamente così da mantenere il totale corretto.</p>
+    <div class="modal-btns">
+      <button onclick="closeModal('modal-clear-history')">Annulla</button>
+      <button class="danger" onclick="clearHistory()">Elimina tutto</button>
     </div>
   </div>
 </div>
@@ -680,6 +695,24 @@ function deleteRecord() {
   closeModal('modal-edit-record');
   renderHistory();
   showToast('Sessione eliminata');
+}
+
+function clearHistory() {
+  // Per ogni goal attivo, aggiorna il pregresso sommando le sessioni
+  // dalla data di inizio che stanno per essere eliminate
+  goals.forEach(g => {
+    const startDate = new Date(g.startDate);
+    startDate.setHours(0,0,0,0);
+    const fromHistory = history
+      .filter(s => new Date(s.date) >= startDate)
+      .reduce((a, s) => a + s.dur, 0);
+    g.preSecs = (g.preSecs || 0) + fromHistory;
+  });
+  history = [];
+  save();
+  closeModal('modal-clear-history');
+  renderHistory();
+  showToast('Storico cancellato');
 }
 
 // ─── OBIETTIVO ────────────────────────────────────────
