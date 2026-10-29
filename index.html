@@ -185,6 +185,26 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
 /* TOAST */
 #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--bg3); border: 1px solid var(--border); color: var(--text); font-size: 13px; padding: 10px 18px; border-radius: 999px; opacity: 0; transition: opacity 0.3s, transform 0.3s; pointer-events: none; white-space: nowrap; z-index: 200; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* timer top-right icons */
+.timer-top-right { display: flex; gap: 8px; margin-left: auto; }
+.icon-btn { background: none; border: none; color: var(--text3); cursor: pointer; padding: 4px; display: flex; align-items: center; border-radius: 6px; transition: color 0.15s; }
+.icon-btn:active { color: var(--text); }
+.icon-btn.active { color: var(--accent); }
+.icon-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* sound modal */
+.sound-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.sound-opt { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg3); cursor: pointer; transition: border-color 0.15s; }
+.sound-opt.selected { border-color: var(--accent); }
+.sound-opt-label { font-size: 14px; color: var(--text); }
+.sound-opt-play { background: none; border: none; color: var(--text2); cursor: pointer; padding: 4px; display: flex; align-items: center; }
+.sound-opt-play:active { color: var(--accent); }
+.sound-opt-play svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* storico header */
+.history-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 20px 0; flex-shrink: 0; }
+.history-header button { background:none; border:none; color:var(--text3); font-size:12px; cursor:pointer; padding:4px 0; }
 </style>
 </head>
 <body>
@@ -204,6 +224,14 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
         <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <span class="timer-session-name" id="timer-session-name"></span>
+      <div class="timer-top-right">
+        <button class="icon-btn" id="btn-wake-lock" onclick="toggleWakeLock()" aria-label="Schermo attivo" title="Tieni schermo attivo">
+          <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        </button>
+        <button class="icon-btn" id="btn-sound" onclick="openModal('modal-sound')" aria-label="Suono" title="Suono fine sessione">
+          <svg viewBox="0 0 24 24" id="sound-icon-svg"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        </button>
+      </div>
     </div>
     <div class="timer-body">
       <div class="timer-ring-wrap">
@@ -224,8 +252,9 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
   <!-- STORICO -->
   <div id="screen-history" class="screen">
     <div class="history-stats" id="history-stats"></div>
-    <div style="display:flex;justify-content:flex-end;padding:8px 20px 0;flex-shrink:0">
-      <button onclick="openModal('modal-clear-history')" style="background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:4px 0">Cancella tutto</button>
+    <div class="history-header">
+      <button onclick="openModal('modal-clear-history')">Cancella tutto</button>
+      <button onclick="openAddRecord()" style="color:var(--accent);font-size:15px;padding:2px 0">+ Aggiungi</button>
     </div>
     <div class="history-list" id="history-list"></div>
   </div>
@@ -391,6 +420,49 @@ html, body { background: var(--bg); color: var(--text); font-family: -apple-syst
   </div>
 </div>
 
+<!-- MODAL: suono fine sessione -->
+<div class="modal-overlay" id="modal-sound">
+  <div class="modal">
+    <h3>Suono fine sessione</h3>
+    <div class="sound-list" id="sound-list"></div>
+    <div class="modal-btns" style="margin-top:14px">
+      <button onclick="closeModal('modal-sound')">Chiudi</button>
+      <button class="confirm" onclick="confirmSound()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: aggiungi record manuale -->
+<div class="modal-overlay" id="modal-add-record">
+  <div class="modal">
+    <h3>Aggiungi sessione</h3>
+    <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:4px">
+      <div class="field">
+        <label>Data</label>
+        <input type="date" id="ar-date">
+      </div>
+      <div class="field">
+        <label>Ora</label>
+        <input type="time" id="ar-time">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Durata (ore)</label>
+          <input type="number" id="ar-dur-h" min="0" max="23" placeholder="0">
+        </div>
+        <div class="field">
+          <label>Durata (min)</label>
+          <input type="number" id="ar-dur-m" min="0" max="59" placeholder="30">
+        </div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button onclick="closeModal('modal-add-record')">Annulla</button>
+      <button class="confirm" onclick="saveAddRecord()">Aggiungi</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -399,6 +471,16 @@ const DAIMOKU_PER_MIN = 50;
 const DAIMOKU_PER_ORA = 3000;
 const CIRC = 2 * Math.PI * 108;
 const NAV_SCREENS = ['sessions','history','goal'];
+
+// ─── SUONI ────────────────────────────────────────────
+const SOUNDS = [
+  { id: 'tibetan',  label: 'Campana tibetana' },
+  { id: 'bowl',     label: 'Bol di cristallo' },
+  { id: 'gong',     label: 'Gong' },
+  { id: 'silent',   label: 'Silenzio' },
+];
+let currentSound = localStorage.getItem('dmk_sound') || 'tibetan';
+let pendingSound = currentSound;
 
 // ─── STATE ────────────────────────────────────────────
 let sessionDurations = JSON.parse(localStorage.getItem('dmk_durations') || 'null') || [5,10,15,20,30,35,45,60,80,90,120];
@@ -423,12 +505,30 @@ let currentDur = 0, totalSecs = 0, remainSecs = 0;
 let timerState = 'idle';
 let intervalId = null, startedAt = null, pausedElapsed = 0;
 let wakeLock = null;
+let wakeLockEnabled = localStorage.getItem('dmk_wakelock') !== 'off';
 
 function save() {
   localStorage.setItem('dmk_durations', JSON.stringify(sessionDurations));
   localStorage.setItem('dmk_history', JSON.stringify(history));
   localStorage.setItem('dmk_goals', JSON.stringify(goals));
   localStorage.setItem('dmk_daily', String(dailyMins));
+}
+
+// ─── WAKE LOCK TOGGLE ────────────────────────────────
+function updateWakeLockBtn() {
+  const btn = document.getElementById('btn-wake-lock');
+  if (!btn) return;
+  btn.classList.toggle('active', wakeLockEnabled);
+  btn.title = wakeLockEnabled ? 'Schermo attivo: ON' : 'Schermo attivo: OFF';
+}
+
+function toggleWakeLock() {
+  wakeLockEnabled = !wakeLockEnabled;
+  localStorage.setItem('dmk_wakelock', wakeLockEnabled ? 'on' : 'off');
+  updateWakeLockBtn();
+  if (!wakeLockEnabled && wakeLock) { releaseWakeLock(); }
+  else if (wakeLockEnabled && timerState==='running') { acquireWakeLock(); }
+  showToast(wakeLockEnabled ? 'Schermo attivo: ON' : 'Schermo attivo: OFF');
 }
 
 // ─── NAV ──────────────────────────────────────────────
@@ -504,7 +604,10 @@ function renderSessions() {
 
 function removeSession(idx) { sessionDurations.splice(idx, 1); save(); renderSessions(); }
 
-function openModal(id) { document.getElementById(id).classList.add('open'); }
+function openModal(id) {
+  if (id === 'modal-sound') { pendingSound = currentSound; renderSoundList(); }
+  document.getElementById(id).classList.add('open');
+}
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
   if (id === 'modal-add') document.getElementById('custom-min-input').value = '';
@@ -517,7 +620,7 @@ function confirmCustom() {
   closeModal('modal-add');
 }
 document.getElementById('custom-min-input').addEventListener('keydown', e => { if (e.key==='Enter') confirmCustom(); if (e.key==='Escape') closeModal('modal-add'); });
-document.querySelectorAll('.modal-overlay').forEach(m => { m.addEventListener('click', e => { if (e.target===m) m.classList.remove('open'); }); });
+document.querySelectorAll('.modal-overlay').forEach(m => { m.addEventListener('click', e => { if (e.target===m) { const id=m.id; m.classList.remove('open'); if(id==='modal-add')document.getElementById('custom-min-input').value=''; } }); });
 
 // ─── TIMER ────────────────────────────────────────────
 function openTimer(secs, label) {
@@ -529,6 +632,8 @@ function openTimer(secs, label) {
   setTimerStatus('pronto'); renderControls('idle');
   updateTimerDaily(0);
   showScreen('timer');
+  updateWakeLockBtn();
+  updateSoundIcon();
 }
 
 function pad(n) { return String(n).padStart(2,'0'); }
@@ -561,7 +666,7 @@ function renderControls(state) {
   else if (state==='done') c.innerHTML=`<button class="ctrl-btn primary" onclick="goBackDone()">${back} Nuova sessione</button>`;
 }
 
-async function acquireWakeLock() { if ('wakeLock' in navigator) try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {} }
+async function acquireWakeLock() { if (!wakeLockEnabled) return; if ('wakeLock' in navigator) try { wakeLock = await navigator.wakeLock.request('screen'); } catch(e) {} }
 function releaseWakeLock() { if (wakeLock) { wakeLock.release(); wakeLock=null; } }
 
 function startTimer() {
@@ -599,30 +704,109 @@ function completeTimer(elapsed) { releaseWakeLock(); saveSession(elapsed,true); 
 function goBack() { if (timerState==='running') pauseTimer(); document.getElementById('bottom-nav').style.display='flex'; showScreen('sessions'); }
 function goBackDone() { document.getElementById('bottom-nav').style.display='flex'; showScreen('sessions'); }
 
-function playBell() {
+// ─── SUONO ────────────────────────────────────────────
+function updateSoundIcon() {
+  const svg = document.getElementById('sound-icon-svg');
+  if (!svg) return;
+  if (currentSound === 'silent') {
+    svg.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>';
+  } else {
+    svg.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+  }
+}
+
+function renderSoundList() {
+  const list = document.getElementById('sound-list');
+  list.innerHTML = SOUNDS.map(s => `
+    <div class="sound-opt${pendingSound===s.id?' selected':''}" onclick="selectSound('${s.id}')">
+      <span class="sound-opt-label">${s.label}</span>
+      <button class="sound-opt-play" onclick="event.stopPropagation();previewSound('${s.id}')" aria-label="Ascolta">
+        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      </button>
+    </div>`).join('');
+}
+
+function selectSound(id) {
+  pendingSound = id;
+  renderSoundList();
+}
+
+function confirmSound() {
+  currentSound = pendingSound;
+  localStorage.setItem('dmk_sound', currentSound);
+  closeModal('modal-sound');
+  updateSoundIcon();
+  showToast('Suono salvato');
+}
+
+function previewSound(id) { playSound(id); }
+function playBell() { playSound(currentSound); }
+
+function playSound(id) {
+  if (id === 'silent') return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const partials = [
-      { freq: 432,  amp: 0.6,  decay: 6.0 },
-      { freq: 1192, amp: 0.25, decay: 4.5 },
-      { freq: 2333, amp: 0.1,  decay: 3.0 },
-      { freq: 3857, amp: 0.05, decay: 1.8 },
-    ];
-    partials.forEach(p => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-      lfo.frequency.value = 5.5; lfoGain.gain.value = 1.2;
-      lfo.connect(lfoGain); lfoGain.connect(osc.frequency); lfo.start();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'sine'; osc.frequency.value = p.freq;
-      const t = ctx.currentTime;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(p.amp, t + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + p.decay);
-      osc.start(t); osc.stop(t + p.decay); lfo.stop(t + p.decay);
-    });
+    if (id === 'tibetan') {
+      // campana tibetana — partials con LFO vibrato
+      const partials = [
+        { freq: 432,  amp: 0.6,  decay: 6.0 },
+        { freq: 1192, amp: 0.25, decay: 4.5 },
+        { freq: 2333, amp: 0.1,  decay: 3.0 },
+        { freq: 3857, amp: 0.05, decay: 1.8 },
+      ];
+      partials.forEach(p => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.frequency.value = 5.5; lfoGain.gain.value = 1.2;
+        lfo.connect(lfoGain); lfoGain.connect(osc.frequency); lfo.start();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = p.freq;
+        const t = ctx.currentTime;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(p.amp, t + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + p.decay);
+        osc.start(t); osc.stop(t + p.decay); lfo.stop(t + p.decay);
+      });
+    } else if (id === 'bowl') {
+      // bol di cristallo — fondamentale pura con risonanza lunga
+      const partials = [
+        { freq: 528,  amp: 0.7,  decay: 8.0 },
+        { freq: 1056, amp: 0.2,  decay: 6.0 },
+        { freq: 1584, amp: 0.08, decay: 4.0 },
+      ];
+      partials.forEach(p => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = p.freq;
+        const t = ctx.currentTime;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(p.amp, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + p.decay);
+        osc.start(t); osc.stop(t + p.decay);
+      });
+    } else if (id === 'gong') {
+      // gong — attacco percussivo, corpo ricco, lunga coda
+      const partials = [
+        { freq: 80,  amp: 0.5,  decay: 5.0 },
+        { freq: 197, amp: 0.35, decay: 4.0 },
+        { freq: 373, amp: 0.2,  decay: 3.0 },
+        { freq: 641, amp: 0.1,  decay: 2.0 },
+      ];
+      partials.forEach(p => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.value = p.freq;
+        const t = ctx.currentTime;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(p.amp, t + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + p.decay);
+        osc.start(t); osc.stop(t + p.decay);
+      });
+    }
   } catch(e) {}
 }
 
@@ -695,6 +879,32 @@ function deleteRecord() {
   closeModal('modal-edit-record');
   renderHistory();
   showToast('Sessione eliminata');
+}
+
+// ─── AGGIUNGI RECORD MANUALE ──────────────────────────
+function openAddRecord() {
+  const now = new Date();
+  document.getElementById('ar-date').value = now.toISOString().slice(0,10);
+  document.getElementById('ar-time').value = now.toTimeString().slice(0,5);
+  document.getElementById('ar-dur-h').value = '';
+  document.getElementById('ar-dur-m').value = '';
+  openModal('modal-add-record');
+}
+
+function saveAddRecord() {
+  const date = document.getElementById('ar-date').value;
+  const time = document.getElementById('ar-time').value;
+  const h = parseInt(document.getElementById('ar-dur-h').value) || 0;
+  const m = parseInt(document.getElementById('ar-dur-m').value) || 0;
+  if (!date || !time) { showToast('Inserisci data e ora'); return; }
+  const dur = h*3600 + m*60;
+  if (dur < 60) { showToast('Durata minima: 1 minuto'); return; }
+  history.unshift({ date: new Date(date + 'T' + time).toISOString(), dur, completed: true, manual: true });
+  history.sort((a,b) => new Date(b.date) - new Date(a.date));
+  save();
+  closeModal('modal-add-record');
+  renderHistory();
+  showToast('Sessione aggiunta');
 }
 
 function clearHistory() {
@@ -952,6 +1162,8 @@ function restoreTimerState() {
   renderControls('paused');
   updateTimerDaily(elapsed);
   showScreen('timer');
+  updateWakeLockBtn();
+  updateSoundIcon();
   return true;
 }
 
