@@ -1,4 +1,4 @@
-const CACHE = 'daimoku-v2';
+const CACHE = 'daimoku-v3';
 const FILES = ['./', './manifest.json', './Crane_192.png', './Crane_256.png'];
 
 self.addEventListener('install', e => {
